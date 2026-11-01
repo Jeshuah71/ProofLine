@@ -1,0 +1,22 @@
+
+# Python virtual environments
+.venv/
+
+# Python temporary files
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Node.js dependencies
+node_modules/
+
+# Generated frontend build
+dist/
+
+# Local environment configuration
+.env
+.env.*
+!.env.example
+
+# macOS system files
+.DS_Store

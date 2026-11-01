@@ -1,0 +1,200 @@
+/* Main layout */
+.app-container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 30px 20px;
+}
+
+/* Header */
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.app-header h1 {
+  color: #087f5b;
+  font-size: 28px;
+}
+
+.app-header span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+/* Introduction */ 
+.hero {
+  text-align: center;
+  margin: 70px 0 40px;
+}
+
+.hero h2 {
+  font-size: clamp(28px, 5vw, 40px);
+  color: #172b36;
+}
+
+.hero p {
+  color: #64748b;
+  line-height: 1.6;
+}
+
+/* Input card */
+.analysis-card {
+  background: white;
+  padding: 28px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.04);
+}
+
+.analysis-card textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 15px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  font: inherit;
+  resize: vertical;
+  margin-top: 12px;
+}
+
+.character-count {
+  text-align: right;
+  color: #64748b;
+  font-size: 12px;
+}
+
+/* Analyze button */
+.analysis-card button {
+  width: 100%;
+  padding: 14px;
+  background: #087f5b;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.analysis-card button:hover {
+  background: #066b4c;
+}
+
+/* Results */
+.status {
+  text-align: center;
+  margin-top: 22px;
+  color: #334155;
+}
+
+.warnings {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 12px;
+  padding: 20px;
+  margin-top: 20px;
+}
+
+.warnings h3 {
+  color: #92400e;
+  text-align: center;
+}
+
+.warnings ul {
+  padding-left: 24px;
+  margin: 16px 0 0;
+}
+
+.warnings li {
+  margin: 10px 0;
+  color: #78350f;
+  overflow-wrap: anywhere;
+  text-align: left;
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+
+/* Footer */
+footer {
+  text-align: center;
+  margin-top: 40px;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+/* Mobile screens */
+@media (max-width: 600px) {
+  .app-header {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .hero {
+    margin: 40px 0 25px;
+  }
+
+  .analysis-card {
+    padding: 16px;
+  }
+}
+
+
+/* No detected warning patterns */
+.warnings.no-warnings {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  border-left: 4px solid #64748b;
+}
+
+.warnings.no-warnings h3 {
+  color: #334155;
+}
+
+/* One detected warning */
+.warnings.one-warning {
+  background: #fffbeb;
+  border-color: #fde68a;
+  border-left: 4px solid #d97706;
+}
+
+/* Multiple detected warnings */
+.warnings.many-warnings {
+  background: #fff7f7;
+  border-color: #fecaca;
+  border-left: 4px solid #dc2626;
+}
+
+.warnings.many-warnings h3 {
+  color: #991b1b;
+}
+
+
+/* Recommended actions */
+.recommendations {
+  margin-top: 20px;
+  padding: 20px;
+  background: #f0f7ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+}
+
+.recommendations h3 {
+  margin-top: 0;
+  color: #1e40af;
+  text-align: center;
+}
+
+.recommendations ul {
+  padding-left: 24px;
+  margin: 16px 0 0;
+
+}
+
+.recommendations li {
+  text-align: left;
+  margin-bottom: 12px;
+  line-height: 1.6;
+  color: #334155;
+}
