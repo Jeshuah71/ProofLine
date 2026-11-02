@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+from company_registry import get_reference_record
 from main import app
 
 # Create a client to test our API
@@ -52,3 +53,62 @@ def test_no_warning_signs():
     # Expect no matches from our current rules
     assert response.status_code == 200
     assert len(warnings) == 0
+    
+def test_misleading_website_url():
+    # Test a URL containing misleading user information 
+    response = client.post("/analyze", json={
+        "message": "We would like to invite you to an interview.",
+        "recruiter_email": "jobs@example.com",
+        "company_website": "https://example.com@fake-recruiter.test/jobs"
+    })
+    
+    assert response.status_code == 200
+    
+    # The comparison should reject this URL 
+    assert response.json()["domain_check"] is None
+
+
+def test_lookalike_domain():
+    # Test a domain with '1' instead of 'l'
+    response = client.post("/analyze", json={
+        "message": "We would like to invite you to an interview.",
+        "recruiter_email": "recruiter@examp1e.com",
+        "company_website": "https://example.com"
+    })
+
+    assert response.status_code == 200
+
+    domain = response.json()["domain_check"]
+
+    # Verify our lookalike rule detected the difference
+    assert domain["potential_lookalike"] is True
+
+def test_more_lookalike_variants():
+    # Test missing, extra and swapped characters
+    domains = [
+        "exaple.com",
+        "exammple.com",
+        "examlpe.com"
+    ]
+    
+    for domain in domains:
+        response = client.post("/analyze", json={
+            "message": "We would like to invite you to an interview.",
+            "recruiter_email": f"jobs@{domain}",
+            "company_website": "https://example.com"
+        })
+        
+        assert response.status_code == 200
+        
+        result = response.json()["domain_check"]
+        assert result["potential_lookalike"] is True
+        
+def test_microsoft_reference():
+    # Look up the company's stored reference
+    record = get_reference_record("Microsoft")
+
+    # Verify the expected domain and source metadata
+    assert record is not None
+    assert record["domain"] == "microsoft.com"
+    assert record["verified"] is True
+    assert record["verification_scope"] == "company_domain_only"
