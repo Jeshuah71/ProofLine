@@ -198,3 +198,167 @@ footer {
   line-height: 1.6;
   color: #334155;
 }
+
+
+/* Recruiter information inputs */
+.company-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 20px 0;
+}
+
+.company-fields label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.company-fields input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 12px;
+  box-sizing: border-box;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  font: inherit;
+}
+
+/* Recruiter domain analysis */
+.domain-results {
+  margin-top: 20px;
+  padding: 20px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  overflow-wrap: anywhere;
+}
+
+.domain-results h3 {
+  margin-top: 0;
+  color: #334155;
+}
+
+.domain-status {
+  font-weight: 600;
+  color: #087f5b;
+}
+
+.domain-results small {
+  color: #64748b;
+  line-height: 1.6;
+}
+
+
+/* Invalid domain warning */
+.domain-error {
+  margin-top: 20px;
+  padding: 20px;
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+  border-radius: 12px;
+  text-align: left;
+}
+
+.domain-error h3 {
+  margin-top: 0;
+  color: #9a3412;
+}
+
+.domain-error p {
+  color: #7c2d12;
+  line-height: 1.6;
+}
+
+/* Highlight potential domain impersonation */
+.domain-status.domain-lookalike {
+  color: #b45309;
+}
+
+
+/* Company reference comparison */
+.reference-results {
+  margin-top: 20px;
+  padding: 20px;
+  background: #f0f7f4;
+  border: 1px solid #b7d9c9;
+  border-radius: 12px;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.reference-results h3 {
+  margin-top: 0;
+  color: #087f5b;
+}
+
+.reference-results p {
+  line-height: 1.6;
+}
+
+.reference-results small {
+  color: #64748b;
+}
+
+
+/* Company reference source information */
+.reference-source {
+  margin-top: 20px;
+  padding: 20px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  overflow-wrap: anywhere;
+}
+
+.reference-source h3 {
+  margin-top: 0;
+  color: #334155;
+}
+
+.reference-source p {
+  line-height: 1.6;
+}
+
+.reference-source small {
+  color: #64748b;
+}
+
+.registration-section {
+  margin-top: 20px;
+  padding: 20px;
+  background: white;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+}
+
+.registration-section h3 {
+  margin-top: 0;
+  color: #334155;
+}
+
+.registration-section button {
+  padding: 12px 20px;
+  background: #087f5b;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.registration-section button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.registration-result {
+  margin: 16px 0;
+  overflow-wrap: anywhere;
+}
+
+.registration-section small {
+  color: #64748b;
+  line-height: 1.6;
+}
+

@@ -2,7 +2,9 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from urllib.parse import urlparse
+from url_analysis import analyze_url
 from company_registry import get_reference_domain, get_reference_record
+from rdap_lookup import get_domain_registration
 import re
 
 
@@ -22,12 +24,15 @@ app.add_middleware(
 
 # Define what data the API expects
 class JobOfferRequest(BaseModel):
-    message: str
-    
+    message: str    
     # Additional information (optional)
     company_name: str | None = None
     recruiter_email: str | None = None
     company_website: str | None = None
+    
+# Define the data expected by our URL analyzer
+class URLAnalysisRequest(BaseModel):
+    url: str
     
 def is_one_char_lookalike(domain_a: str, domain_b: str) -> bool:
     # Different lengths cannot be a one-character substitution
@@ -67,6 +72,16 @@ def is_typo_variant(a: str, b: str) -> bool:
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
+
+# Retrieve domain registration information
+@app.get("/domain-registration")
+def domain_registration(company_name: str):
+    
+    # Look up the company's stored reference domain
+    result = get_domain_registration(company_name)
+    
+    # Return the result as JSON
+    return result
 
 # Receive a job-offer message
 @app.post("/analyze")
@@ -259,3 +274,11 @@ def analyze_offer(job_offer: JobOfferRequest):
         "reference_record": reference_record,
     }
     
+@app.post("/analyze-url")
+def analyze_suspicious_url(request: URLAnalysisRequest):
+    # Analyze the URL without visiting it
+    result = analyze_url(request.url)
+
+    # Return the findings to the frontend
+    return result
+

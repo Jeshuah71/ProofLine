@@ -112,3 +112,21 @@ def test_microsoft_reference():
     assert record["domain"] == "microsoft.com"
     assert record["verified"] is True
     assert record["verification_scope"] == "company_domain_only"
+
+
+def test_url_analysis_endpoint():
+    # Send a misleading URL to our API
+    response = client.post("/analyze-url", json={
+        "url": "https://example.com@fake-recruiter.test/jobs"
+    })
+
+    # Verify the API responded successfully
+    assert response.status_code == 200
+
+    result = response.json()
+
+    # Verify the actual hostname
+    assert result["hostname"] == "fake-recruiter.test"
+
+    # Verify a warning was detected
+    assert len(result["signals"]) == 1

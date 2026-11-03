@@ -4,7 +4,16 @@ import "./App.css";
 // Read the API URL form our environment
 const API_URL = import.meta.env.VITE_API_URL;
 
+type RegistrationResult = {
+  status: "checked" | "unavailable" | "no-reference";
+  domain?: string;
+  registered_at?: string | null;
+};
+
 function App() {
+
+  // Store domain validation messages 
+  const [domainError, setDomainError] = useState<string | null>(null);
   // Store the job message entered by the user 
   const [message, setMessage] = useState("");
 
@@ -17,7 +26,64 @@ function App() {
   // Store recommendations returned by our backend
   const  [recommendations, setRecommendations] = useState<string[]>([]);
 
+  // Store the company name entered by the user
+  const [companyName, setCompanyName] = useState("");
+
+  // Store domain registration information 
+  const [registration, setRegistration] = useState<RegistrationResult | null>(null);
+
+  // Track whether the request is running 
+  const [checkingDomain, setCheckingDomain] = useState(false);
+
+
+  type DomainCheck = {
+    email_domain: string;
+    website_domain: string;
+    exact_match: boolean;
+    is_subdomain: boolean;
+    potential_lookalike: boolean;
+  };
+
+  type ReferenceCheck = {
+    email_domain: string;
+    reference_domain: string;
+    matches_reference: boolean;
+  };
+
+  type ReferenceRecord = {
+    domain: string;
+    source: string;
+    verified: boolean;
+    checked_at?: string;
+    verification_scope?: string;
+  };
+
+  // Store recruiter information entered by the user 
+  const [recruiterEmail, setRecruiterEmail] = useState("");
+  const [companyWebsite, setCompanyWebsite] = useState("");
+
+  // Store domain comparison results
+  const [domainCheck, setDomainCheck] = useState<DomainCheck | null>(null);
+
+  // Store the company registery comparison
+  const [referenceCheck, setReferenceCheck] = useState<ReferenceCheck | null>(null);
+
+  // Store company refrence metadata
+  const [referenceRecord, setReferenceRecord] = useState<ReferenceRecord | null>(null);
+
   async function handleAnalyze() {
+    // Clear the previous company reference
+    setReferenceRecord(null);
+
+    // Clear the previous comparison
+    setReferenceCheck(null);
+    
+    // 
+    setDomainError(null);
+
+    
+    // Clear the previous domain comparison
+    setDomainCheck(null);
     
     // Clear recommendations from the previous analysis
     setRecommendations([]);
@@ -52,6 +118,9 @@ function App() {
           },
           body: JSON.stringify({
             message: cleanMessage,
+            company_name: companyName.trim() || null, 
+            recruiter_email: recruiterEmail.trim() || null,
+            company_website: companyWebsite.trim() || null,
           }),
         }
       );
@@ -64,6 +133,18 @@ function App() {
       // Convert the JSON response into a JavaScript object
       const data = await response.json();
 
+      // Save source information from FastAPI
+      setReferenceRecord(data.reference_check ?? null);
+
+      // Save the comparison returned by FastAPI
+      setReferenceCheck(data.reference_check ?? null);
+
+      // Read the domain validation result 
+      setDomainError(data.domain_error ?? null);
+
+      // Save the comparison returned by FastAPI
+      setDomainCheck(data.domain_check ?? null);
+
       // Save the recommendations returned by Python 
       setRecommendations(data.recommendations);
 
@@ -71,9 +152,41 @@ function App() {
       setWarnings(data.warnings);
 
       // Update the status message
-      setStatus(`Analysis completed: ${data.assessment}`);
+      setStatus(
+        data.warning_count === 0
+          ? "Message analysis: No text warning patterns matched."
+          : `Message analysis: ${data.assessment}`
+      );
     } catch {
       setStatus("Could not connect to the backend.");
+    }
+  }
+
+  async function handleCheckDomain() {
+    // Clear the previous result 
+    setRegistration(null);
+    setCheckingDomain(true);
+
+    try {
+      // Send the company name as a query parameter
+      const response = await fetch(
+        `${API_URL}/domain-registration?company_name=${
+          encodeURIComponent(companyName.trim())
+        }`
+      );
+
+      if (!response.ok) {
+        throw new Error("Domain lookup failed");
+      }
+
+      // Read the backend response
+      const data: RegistrationResult = await response.json();
+      setRegistration(data);
+    } catch {
+      setRegistration({ status: "unavailable" });
+    } finally {
+      // Stop showing the loading state
+      setCheckingDomain(false);
     }
   }
   return (
@@ -103,6 +216,44 @@ function App() {
           value={message}
           onChange={(event) => setMessage(event.target.value)}
         />
+        <div className="company-fields">
+          <label htmlFor="company-name">
+            Company Name (optional)
+          </label>
+
+          <input
+            id="company-name"
+            type="text"
+            placeholder="Enter company name"
+            value={companyName}
+            onChange={(event) => setCompanyName(event.target.value)}
+          />
+        
+        {/* Oprional recruiter information */}
+        
+          <label htmlFor="recruiter-email">
+            Recruiter Email (optional)
+          </label>
+          <input
+            id="recruiter-email"
+            type="email"
+            placeholder="recruiter@example.com"
+            value={recruiterEmail}
+            onChange={(event) => setRecruiterEmail(event.target.value)}
+          />
+          
+          <label htmlFor="company-website">
+            Company Website (optional)
+          </label>
+
+          <input
+            id="company-website"
+            type="url"
+            placeholder="https://example.com"
+            value={companyWebsite}
+            onChange={(event) => setCompanyWebsite(event.target.value)}
+          />
+        </div>
 
         <p className="character-count">
           {message.length} characters
@@ -116,7 +267,7 @@ function App() {
         {status && <p className="status">{status}</p>}
 
         {/* Detection results */}
-        {status.startsWith("Analysis completed") && (
+        {status.startsWith("Message analysis") && (
           <div 
             className={`warnings ${
               warnings.length === 0
@@ -135,26 +286,177 @@ function App() {
                 ))}
               </ul>
             ) : (
-              <p>No watching warning signs were detected.</p>
+              <p>No matching warning patterns were detected. This does not confirm that the offer is legitimate.</p>
             )}
           </div>
         )}
 
       </section>
 
-      {/* Show recommendations when available */}
-        <section className="recommendations">
-          <h3>Recommended Actions</h3>
-
-          <ul>
-            {recommendations.map((recommendation, index) => (
-              <li key={index}>
-                {recommendation}
-              </li>
-            ))}
-          </ul>
+      {/* Display invalid domain information */}
+      {domainError && (
+        <section className="domain-error">
+          <h3>Domain Validation Warning</h3>
+          <p>{domainError}</p>
         </section>
-      
+      )}
+
+      {/* Show recommendations when available */}
+        {recommendations.length > 0 && (
+          <section className="recommendations">
+            <h3>Recommended Actions</h3>
+
+            <ul>
+              {recommendations.map((recommendation, index) => (
+                <li key={index}>{recommendation}</li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {/* Domain comparison results */}
+        {domainCheck && (
+          <section className="domain-results">
+            <h3>Recruiter Domain Analysis</h3>
+
+            <p>
+              <strong>Email domain:</strong>{" "}
+              {domainCheck.email_domain}
+            </p>
+
+            <p>
+              <strong>Website domain:</strong>{" "}
+              {domainCheck.website_domain}
+            </p>
+
+            <p
+              className={
+                domainCheck.potential_lookalike
+                  ? "domain-status domain-lookalike"
+                  : "domain-status"
+              }
+            >
+              {domainCheck.exact_match
+                ? "Exact domain match"
+                : domainCheck.is_subdomain
+                  ? "Related subdomain detected"
+                  : domainCheck.potential_lookalike
+                    ? "Potential lookalike domain - verify carefully"
+                    : "Domains do not match"}
+            </p>
+
+            <small>
+              A matching domain does not verify a recruiter's 
+              identity. Confirm the employer's official website
+              independently
+            </small>
+
+          </section>
+        )}
+
+        {/* Compare email against our company registry */}
+        {referenceCheck && (
+          <section className="reference-results">
+            <h3>Company Reference Check</h3>
+
+            <p>
+              <strong>Recruiter domain:</strong>{" "}
+              {referenceCheck.email_domain}
+            </p>
+
+            <p>
+              <strong>Reference domain:</strong>{" "}
+              {referenceCheck.reference_domain}
+            </p>
+
+            <p>
+              {referenceCheck.matches_reference
+                ? "Domain matches our demostration reference."
+                : "Domain does not match our demostration reference."}
+            </p>
+
+            <small>
+              Demostration data only. This comparison
+              does not verify the recruiter or company.
+            </small>
+          </section>
+        )}
+
+
+        {/* Show the source behind our company reference */}
+        {referenceRecord && (
+          <section className="reference-source">
+            <h3>Company Reference Source</h3>
+
+            <p>
+              <strong>Domain:</strong> {referenceRecord.domain}
+            </p>
+
+            <p>
+              <strong>Source:</strong> {referenceRecord.source}
+            </p>
+
+            <p>
+              <strong>Reference status:</strong>{" "}
+              {referenceRecord.verified
+                ? "Company-domain reference documented"
+                : "Demonstration data only"}
+            </p>
+
+            {referenceRecord.checked_at && (
+              <p>
+                <strong>Recorded check date:</strong>{" "}
+                {referenceRecord.checked_at}
+              </p>
+            )}
+
+            <small>
+              A documented company domain does not verify
+              a recruiter, email sender, or job offer.
+            </small>
+          </section>
+        )}
+
+        {/* Request domain registration information */}
+        <section className="registration-section">
+          <h3>Domain Registration Check</h3>
+
+          <button
+            type="button"
+            onClick={handleCheckDomain}
+            disabled={checkingDomain || !companyName.trim()}
+          >
+            {checkingDomain ? "Checking..." : "Check Registration"}
+          </button>
+
+          {registration && (
+            <div className="registration-result">
+              {registration.status === "checked" ? (
+                <>
+                  <p>Domain: {registration.domain}</p>
+                  <p>
+                    Registration date:{" "}
+                    {registration.registered_at ?? "Not available"}
+                  </p>
+                </>
+              ) : (
+                <p>
+                  {registration.status === "no-reference"
+                    ? "No documented company reference available"
+                    : "Registration information is currently unavailable."}
+                </p>
+              )}
+            </div>
+          )}
+
+          <small>
+            Domain registration information does not verify 
+            the company, recruiter, or job offer.
+          </small>
+
+        </section>
+
+        
       <footer>
         Proofline help identify warning signs 
         It does not verify job offers.
