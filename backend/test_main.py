@@ -130,3 +130,25 @@ def test_url_analysis_endpoint():
 
     # Verify a warning was detected
     assert len(result["signals"]) == 1
+
+
+def test_analyze_offer_with_url():
+    # Send a job offer containing a suspicious URL
+    response = client.post("/analyze", json={
+        "message": "We would like to schedule an interview.",
+        "job_url": "https://example.com@fake-recruiter.test/jobs"
+    })
+
+    # Verify the request succeeded
+    assert response.status_code == 200
+
+    data = response.json()
+
+    # Verify URL analysis was included
+    assert data["url_check"]["status"] == "checked"
+
+    # Verify the actual hostname
+    assert data["url_check"]["hostname"] == "fake-recruiter.test"
+
+    # Verify a warning was detected
+    assert len(data["url_check"]["signals"]) == 1

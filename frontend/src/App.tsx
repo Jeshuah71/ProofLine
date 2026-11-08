@@ -10,6 +10,22 @@ type RegistrationResult = {
   registered_at?: string | null;
 };
 
+type URLAnalysisResult = {
+  status: "checked" | "invalid";
+  hostname?: string;
+  signals: string[];
+};
+
+type PostingAnalysisResult = {
+  prediction: number;
+  model_score: number;
+  threshold: number;
+  scope: string;
+  rule_signals: string[];
+  review_recommended: boolean;
+};
+
+
 function App() {
 
   // Store domain validation messages 
@@ -36,6 +52,18 @@ function App() {
   const [checkingDomain, setCheckingDomain] = useState(false);
 
 
+  // Job posting information
+  const [postingTitle, setPostingTitle] = useState("");
+  const [postingDescription, setPostingDescription] = useState("");
+
+  // ML and rule-based results
+  const [postingResult, setPostingResult] =
+  useState<PostingAnalysisResult | null>(null);
+
+  // Loading and error states
+  const [checkingPosting, setCheckingPosting] = useState(false);
+  const [postingError, setPostingError] = useState("");
+  
   type DomainCheck = {
     email_domain: string;
     website_domain: string;
@@ -71,7 +99,19 @@ function App() {
   // Store company refrence metadata
   const [referenceRecord, setReferenceRecord] = useState<ReferenceRecord | null>(null);
 
+  // Store the URL entered by the user
+  const [jobUrl, setJobUrl] = useState("");
+
+  // Store the URL analysis results
+  const [urlResult, setUrlResult] = useState<URLAnalysisResult | null>(null);
+
+  // Track loading and errors
+  const [checkingUrl, setCheckingURL] = useState(false);
+  const [urlError, setUrlError] = useState("");
+
   async function handleAnalyze() {
+
+    setUrlResult(null);
     // Clear the previous company reference
     setReferenceRecord(null);
 
@@ -121,6 +161,9 @@ function App() {
             company_name: companyName.trim() || null, 
             recruiter_email: recruiterEmail.trim() || null,
             company_website: companyWebsite.trim() || null,
+
+            // Include the job URL in the main analysis
+            job_url: jobUrl.trim() || null,
           }),
         }
       );
@@ -132,6 +175,9 @@ function App() {
 
       // Convert the JSON response into a JavaScript object
       const data = await response.json();
+
+      // SAve the URL analysis returned by analyze
+      setUrlResult(data.url_check ?? null);
 
       // Save source information from FastAPI
       setReferenceRecord(data.reference_check ?? null);
@@ -187,6 +233,86 @@ function App() {
     } finally {
       // Stop showing the loading state
       setCheckingDomain(false);
+    }
+  }
+
+  async function handleAnalyzeUrl() {
+    // Prepare the URL
+    const cleanUrl = jobUrl.trim();
+
+    if (!cleanUrl) {
+      setUrlError("Please enter a URL.");
+      return;
+    }
+
+    // Reset previous results
+    setUrlResult(null)
+    setUrlError("");
+    setCheckingURL(true);
+
+    try {
+      // Send the URL to FastAPI
+      const response = await fetch(`${API_URL}/analyze-url`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ url: cleanUrl }),
+      });
+
+      if (!response.ok) {
+        throw new Error("URL analysis failed");
+      }
+
+      // Read and store the JSON response
+      const data: URLAnalysisResult = await response.json();
+      setUrlResult(data);
+    } catch {
+      setUrlError("Could not analyze the URL.");
+    } finally {
+      // Stop loading even if the request fails
+      setCheckingURL(false);
+    }
+  }
+
+
+  async function handleAnalyzePosting() {
+    // Require a job description
+    if (!postingDescription.trim()) {
+      setPostingError("Please enter a job description.");
+      return;
+    }
+
+    // Reset previous results
+    setPostingResult(null);
+    setPostingError("");
+    setCheckingPosting(true);
+
+    try {
+      // Send the job posting to FastAPI
+      const response = await fetch(`${API_URL}/analyze-posting`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: postingTitle.trim(),
+          description: postingDescription.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Posting analysis failed");
+      }
+
+      // Store the model and rule-based results
+      const data: PostingAnalysisResult = await response.json();
+      setPostingResult(data);
+
+    } catch {
+      setPostingError("Unable to analyze this posting.");
+    } finally {
+      setCheckingPosting(false);
     }
   }
   return (
@@ -455,7 +581,132 @@ function App() {
           </small>
 
         </section>
+      
+      {/* Suspicious URL analysis */}
+      <section className="url-analysis-section">
+        <h3>Suspicious URL Analysis</h3>
 
+        <p>
+          Check a job-related link for common warning signs.
+        </p>
+
+        <input
+          type="url"
+          placeholder="https://example.com/jobs"
+          value={jobUrl}
+          onChange={(event) => setJobUrl(event.target.value)}
+          aria-label="Job-related URL"
+        />
+        
+        <button
+          type="button"
+          onClick={handleAnalyzeUrl}
+          disabled={checkingUrl}
+        >
+          {checkingUrl ? "Checking..." : "Analyze URL"}
+        </button>
+
+        {urlError && <p role="alert">{urlError}</p>}
+
+        {urlResult && (
+          <div className="url-results">
+            <h4>URL Analysis Results</h4>
+
+            {urlResult.hostname && (
+              <p>Hostname: {urlResult.hostname}</p>
+            )}
+
+            {urlResult.signals.length > 0 ? (
+              <ul>
+                {urlResult.signals.map((signal, index) => (
+                  <li key={index}>{signal}</li>
+                ))}
+              </ul>
+            ) : (
+              <p>No matching URL warning patterns detected.</p>
+            )}
+          </div>
+        )}
+        <small>
+          This check does not visit the URL or guarantee it is safe.
+        </small>
+      </section>
+
+      <section className="posting-analysis">
+        <h3>Job Posting Analysis</h3>
+
+        <p>
+          Analyze a job advertisement using our experimental
+          machine learning model and warning rules.
+        </p>
+
+        <input
+          type="text"
+          placeholder="Job title"
+          value={postingTitle}
+          onChange={(e) => setPostingTitle(e.target.value)}
+        />
+
+        <textarea
+          placeholder="Paste the job description here..."
+          value={postingDescription}
+          onChange={(e) => setPostingDescription(e.target.value)}
+          rows={6}
+        />
+
+        <button
+          type="button"
+          onClick={handleAnalyzePosting}
+          disabled={checkingPosting}
+        >
+          {checkingPosting ? "Analyzing..." : "Analyze Posting"}
+        </button>
+
+        {postingError && <p role="alert">{postingError}</p>}
+
+        {postingResult && (
+          <div className="posting-results">
+            <h4>
+              {postingResult.review_recommended
+                ? "Manual Review Recommended"
+                : "No Matching Warnings Detected"}
+            </h4>
+
+            <p>
+              ML result:{" "}
+              {postingResult.prediction === 1
+                ? "Flagged for review"
+                : "Not flagged by ML"}
+            </p>
+
+            <p>
+              Model score: {postingResult.model_score.toFixed(3)}
+            </p>
+
+            <p>
+              Decision threshold: {postingResult.threshold}
+            </p>
+
+            <h4>Rule-Based Findings</h4>
+
+            {postingResult.rule_signals.length > 0 ? (
+              <ul>
+                {postingResult.rule_signals.map((signal, index) => (
+                  <li key={index}>{signal}</li>
+                ))}
+              </ul>
+            ) : (
+              <p>No matching rule-based warnings.</p>
+            )}
+
+            <small>
+              Experimental model trained on historical job postings.
+              The score is not a verified probability of fraud.
+              Results cannot confirm whether an offer is legitimate.
+            </small>
+          </div>
+        )}
+      </section>
         
       <footer>
         Proofline help identify warning signs 

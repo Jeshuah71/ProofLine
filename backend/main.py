@@ -1,11 +1,15 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from urllib.parse import urlparse
 from url_analysis import analyze_url
 from company_registry import get_reference_domain, get_reference_record
 from rdap_lookup import get_domain_registration
+from posting_signals import detect_posting_signals
 import re
+from pathlib import Path
+from functools import lru_cache
+import joblib
 
 
 # Create the API application
@@ -29,10 +33,29 @@ class JobOfferRequest(BaseModel):
     company_name: str | None = None
     recruiter_email: str | None = None
     company_website: str | None = None
+    job_url: str | None = None
     
 # Define the data expected by our URL analyzer
 class URLAnalysisRequest(BaseModel):
     url: str
+    
+
+class JobPostingRequest(BaseModel):
+    title: str = ""
+    description: str
+
+# Location of our trained ML model
+MODEL_PATH = (
+    Path(__file__).resolve().parent
+    / "models"
+    / "job_posting_classifier.joblib"
+)
+
+
+@lru_cache(maxsize=1)
+def load_ml_model():
+    # Load the trusted model once and reuse it
+    return joblib.load(MODEL_PATH)
     
 def is_one_char_lookalike(domain_a: str, domain_b: str) -> bool:
     # Different lengths cannot be a one-character substitution
@@ -259,6 +282,12 @@ def analyze_offer(job_offer: JobOfferRequest):
     
     # Retrieve the company reference information
     reference_record = get_reference_record(job_offer.company_name)
+    
+    # Analyze the job URL if one was provided 
+    url_check = None
+    
+    if job_offer.job_url and job_offer.job_url.strip():
+        url_check = analyze_url(job_offer.job_url)
     # Return the analysis results
     return {
         "status": "analyzed",
@@ -272,6 +301,7 @@ def analyze_offer(job_offer: JobOfferRequest):
         "reference_domain": reference_domain,
         "reference_check": reference_check,
         "reference_record": reference_record,
+        "url_check": url_check,
     }
     
 @app.post("/analyze-url")
@@ -282,3 +312,42 @@ def analyze_suspicious_url(request: URLAnalysisRequest):
     # Return the findings to the frontend
     return result
 
+
+@app.post("/analyze-posting")
+def analyze_posting(request: JobPostingRequest):
+    # Verify that the saved model exists
+    if not MODEL_PATH.is_file():
+        raise HTTPException(
+            status_code=503,
+            detail="ML model is not available"
+        )
+
+    # Load the trained model and threshold
+    saved = load_ml_model()
+
+    model = saved["pipeline"]
+    threshold = saved["threshold"]
+
+    # Match the text format used during training
+    text = f"{request.title} {request.description}"
+
+    # Calculate the model's fraud-class score
+    score = float(model.predict_proba([text])[0, 1])
+
+    # Apply our decision threshold
+    prediction = int(score >= threshold)
+    
+    # check for explicit payment requiremnets
+    rule_signals = detect_posting_signals(text)
+    
+    # Recoomned review if either system flags a warning
+    review_recommended = bool(rule_signals) or prediction == 1
+
+    return {
+        "prediction": prediction,
+        "model_score": round(score, 4),
+        "threshold": threshold,
+        "scope": "historical_job_posting_patterns",
+        "rule_signals": rule_signals,
+        "review_recommended": review_recommended,
+    }
