@@ -4,6 +4,7 @@
 
 # Python temporary files
 __pycache__/
+*.py[cod]
 *.pyc
 .pytest_cache/
 
@@ -20,3 +21,7 @@ dist/
 
 # macOS system files
 .DS_Store
+*.log
+
+# Raw ML training dataset
+backend/data/

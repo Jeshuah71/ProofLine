@@ -358,6 +358,8 @@ footer {
 }
 
 .registration-section small {
+  display: block;
+  margin-top: 12px;
   color: #64748b;
   line-height: 1.6;
 }
@@ -373,6 +375,7 @@ footer {
 }
 
 .url-analysis-section input {
+  box-sizing: border-box;
   width: 100%;
   padding: 12px;
   border: 1px solid #cbd5e1;
@@ -415,7 +418,10 @@ footer {
 }
 
 .url-analysis-section small {
+  display: block;
+  margin-top: 12px;
   color: #64748b;
+  line-height: 1.6;
 }
 
 
@@ -469,4 +475,90 @@ footer {
 .posting-results small {
   color: #64748b;
   line-height: 1.6;
+}
+
+/* Explanation of the analysis results */
+.analysis-explanation {
+  margin: 16px 0;
+  font-size: 14px;
+  color: #475569;
+  line-height: 1.6;
+}
+
+.analysis-navigation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  margin: 24px auto;
+}
+
+.analysis-navigation button {
+  padding: 12px 20px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: white;
+  color: #334155;
+  font: inherit;
+  cursor: pointer;
+}
+
+.analysis-navigation button.active {
+  background: #087f5b;
+  color: white;
+  border-color: #087f5b;
+}
+
+@media (max-width: 600px) {
+  .analysis-navigation {
+    gap: 8px;
+  }
+
+  .analysis-navigation button {
+    flex: 1 1 100%;
+  }
+}
+
+
+/* Mobile improvements */
+@media (max-width: 640px) {
+
+  /* Reduce padding on smaller screens */
+  .posting-analysis,
+  .url-analysis-section,
+  .registration-section {
+    padding: 16px;
+    margin-top: 16px;
+  }
+
+  /* Make inputs fit the screen */
+  .posting-analysis input,
+  .posting-analysis textarea,
+  .url-analysis-section input {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    font-size: 16px;
+  }
+
+  /* Make action buttons easier to tap */
+  .posting-analysis button,
+  .url-analysis-section button,
+  .registration-section button {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* Prevent long text from overflowing */
+  .posting-results,
+  .url-results {
+    overflow-wrap: anywhere;
+    padding: 14px;
+  }
+}
+
+/* Improve keyboard navigation */
+.analysis-navigation button:focus-visible {
+  outline: 3px solid #c9a227;
+  outline-offset: 3px;
 }

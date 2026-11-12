@@ -20,3 +20,19 @@ def test_http_url():
     result = analyze_url("http://example.com/jobs")
     
     assert "URL does not use HTTPS" in result["signals"]
+    
+
+def test_url_without_scheme():
+    # A URL without HTTP or HTTPS is invalid
+    result = analyze_url("example.com/jobs")
+
+    assert result["status"] == "invalid"
+
+
+def test_url_with_backslash():
+    # Reject potentially confusing URL formatting
+    result = analyze_url(
+        "https://example.com\\@fake-recruiter.test"
+    )
+
+    assert result["status"] == "invalid"

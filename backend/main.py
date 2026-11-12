@@ -1,48 +1,127 @@
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+import os 
+import re
+import joblib
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field, field_validator
 from fastapi.middleware.cors import CORSMiddleware
 from urllib.parse import urlparse
 from url_analysis import analyze_url
 from company_registry import get_reference_domain, get_reference_record
 from rdap_lookup import get_domain_registration
 from posting_signals import detect_posting_signals
-import re
 from pathlib import Path
 from functools import lru_cache
-import joblib
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
+from starlette.middleware.body_limit import RequestBodyLimitMiddleware
 
 
 # Create the API application
 app = FastAPI()
 
-# Allow our React development server to access the API
+
+# Identify clients using their network address
+limiter = Limiter(key_func=get_remote_address)
+
+# Register the limiter with FastAPI
+app.state.limiter = limiter
+
+# Return HTTP 429 when the rate limit is exceeded
+app.add_exception_handler(
+    RateLimitExceeded,
+    _rate_limit_exceeded_handler
+)
+
+
+# Return validation errors without exposing submitted text
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(
+    request: Request,
+    exc: RequestValidationError
+):
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": "Invalid input. Check the required fields and length limits."
+        }
+    )
+
+
+
+# Add privacy-related headers to API responses
+@app.middleware("http")
+async def add_privacy_headers(request: Request, call_next):
+    # Let FastAPI process the request
+    response = await call_next(request)
+
+    # Tell clients and caches not to store this response
+    response.headers["Cache-Control"] = "no-store"
+
+    # Prevent browsers from guessing content types
+    response.headers["X-Content-Type-Options"] = "nosniff"
+
+    return response
+
+# Limit the entire HTTP request body
+MAX_REQUEST_BODY_SIZE = 256 * 1024
+
 app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
+    RequestBodyLimitMiddleware,
+    max_body_size=MAX_REQUEST_BODY_SIZE,
+)
+
+# Read the production frontend origin i configured
+frontend_origin = os.getenv("PROOFLINE_FRONTEND_ORIGIN")
+
+# Use development origins when no production origin is set
+allowed_origins = (
+    [frontend_origin.rstrip("/")]
+    if frontend_origin
+    else [
         "http://localhost:5173",
         "http://127.0.0.1:5173",
-    ],
-    allow_methods=["POST", "GET"],
+    ]
+)
+
+# Configure which browser origins can access our API
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
     allow_headers=["Content-Type"],
 )
 
 # Define what data the API expects
 class JobOfferRequest(BaseModel):
-    message: str    
-    # Additional information (optional)
-    company_name: str | None = None
-    recruiter_email: str | None = None
-    company_website: str | None = None
-    job_url: str | None = None
+    #Required message, maximum 10,000 characters
+    message: str = Field(min_length=1, max_length=10000)
+
+    # Optional company and recruiter information
+    company_name: str | None = Field(default=None, max_length=120)
+    recruiter_email: str | None = Field(default=None, max_length=254)
+    company_website: str | None = Field(default=None, max_length=2048)
+    job_url: str | None = Field(default=None, max_length=2048)
     
+    @field_validator("message")
+    @classmethod
+    def validate_message(cls, value: str) -> str:
+        # Reject messages containing only spaces
+        if not value.strip():
+            raise ValueError("Message cannot be empty")
+        
+        return value
 # Define the data expected by our URL analyzer
 class URLAnalysisRequest(BaseModel):
-    url: str
+    url: str = Field(min_length=1, max_length=2048)
     
 
 class JobPostingRequest(BaseModel):
-    title: str = ""
-    description: str
+    title: str = Field(default="", max_length=200)
+    description: str = Field(min_length=1, max_length=15000)
 
 # Location of our trained ML model
 MODEL_PATH = (
@@ -98,17 +177,23 @@ def health_check():
 
 # Retrieve domain registration information
 @app.get("/domain-registration")
-def domain_registration(company_name: str):
-    
-    # Look up the company's stored reference domain
+@limiter.limit("10/minute")
+def domain_registration(
+    request: Request,
+    company_name: str
+):
+    # Retrieve registration information
     result = get_domain_registration(company_name)
-    
-    # Return the result as JSON
+
     return result
 
 # Receive a job-offer message
 @app.post("/analyze")
-def analyze_offer(job_offer: JobOfferRequest):
+@limiter.limit("20/minute")
+def analyze_offer(
+    request: Request,
+    job_offer: JobOfferRequest
+):
     
     # Remove unnecessary spaces 
     clean_message = job_offer.message.strip()
@@ -149,17 +234,6 @@ def analyze_offer(job_offer: JobOfferRequest):
                     f"{category}: detected `{phrase}`"
                 )
                 break
-    # Determine an assessment based on detected warning 
-    warning_count = len(warnings)
-    
-    if warning_count == 0:
-        assessment = "No warning signs detected"
-        
-    elif warning_count == 1:
-        assessment = "Review recommended"
-    else:
-        assessment = "Multiple warning signs detected"
-                
     # Detect requests to pay a dollar amount
     payment_pattern = r"\b(?:pay|send|transfer)\s+\$\d+(?:\.\d{2})?\b"
     
@@ -173,6 +247,17 @@ def analyze_offer(job_offer: JobOfferRequest):
             f"{payment_match.group()}"
         )
         
+    # Determine an assessment based on detected warning 
+    warning_count = len(warnings)
+    
+    if warning_count == 0:
+        assessment = "No warning signs detected"
+        
+    elif warning_count == 1:
+        assessment = "Review recommended"
+    else:
+        assessment = "Multiple warning signs detected"
+
     # Store advice based on detected warning categories
     recommendations = []
     
@@ -292,7 +377,7 @@ def analyze_offer(job_offer: JobOfferRequest):
     return {
         "status": "analyzed",
         "characters": len(clean_message),
-        "warning_count": len(warnings),
+        "warning_count": warning_count,
         "warnings": warnings,
         "assessment": assessment,
         "recommendations": recommendations,
@@ -305,16 +390,22 @@ def analyze_offer(job_offer: JobOfferRequest):
     }
     
 @app.post("/analyze-url")
-def analyze_suspicious_url(request: URLAnalysisRequest):
-    # Analyze the URL without visiting it
-    result = analyze_url(request.url)
+@limiter.limit("20/minute")
+def analyze_suspicious_url(
+    request: Request,
+    url_request: URLAnalysisRequest
+):
+    # Analyze the submitted URL without opening it
+    return analyze_url(url_request.url)
 
-    # Return the findings to the frontend
-    return result
 
 
 @app.post("/analyze-posting")
-def analyze_posting(request: JobPostingRequest):
+@limiter.limit("5/minute")
+def analyze_posting(
+    request: Request,
+    posting: JobPostingRequest
+):
     # Verify that the saved model exists
     if not MODEL_PATH.is_file():
         raise HTTPException(
@@ -329,7 +420,7 @@ def analyze_posting(request: JobPostingRequest):
     threshold = saved["threshold"]
 
     # Match the text format used during training
-    text = f"{request.title} {request.description}"
+    text = f"{posting.title} {posting.description}"
 
     # Calculate the model's fraud-class score
     score = float(model.predict_proba([text])[0, 1])
