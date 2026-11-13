@@ -73,18 +73,17 @@ app.add_middleware(
     max_body_size=MAX_REQUEST_BODY_SIZE,
 )
 
-# Read the production frontend origin i configured
-frontend_origin = os.getenv("PROOFLINE_FRONTEND_ORIGIN")
+# Allow local development alongside the configured production frontend
+frontend_origin = (
+    os.getenv("PROOFLINE_FRONTEND_ORIGIN", "").strip()
+    or "https://proofline.jeshuah024.workers.dev"
+).rstrip("/")
 
-# Use development origins when no production origin is set
-allowed_origins = (
-    [frontend_origin.rstrip("/")]
-    if frontend_origin
-    else [
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-    ]
-)
+allowed_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    frontend_origin,
+]
 
 # Configure which browser origins can access our API
 app.add_middleware(
